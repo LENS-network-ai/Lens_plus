@@ -61,6 +61,24 @@ class EGLassoRegularization:
         """Store logits for a batch for L0 regularization"""
         self.logits_storage[batch_idx] = logits
     
+    # Add this to EGL_L0_Reg.py or as a standalone function
+
+    def compute_density(edge_weights, adj_matrix):
+     """
+     Compute current density: ρ = (1/|E|) Σ_{(i,j)∈E} z_ij
+    
+     Args:
+        edge_weights: [B, N, N] - gate values
+        adj_matrix: [B, N, N] - original adjacency
+    
+     Returns:
+        density: scalar - current edge retention rate
+     """
+     edge_mask = (adj_matrix > 0).float()
+     num_edges = edge_mask.sum()
+     active_edges = (edge_weights * edge_mask).sum()
+     density = active_edges / (num_edges + 1e-8)
+     return density
     def update_temperature(self, current_epoch, warmup_epochs, initial_temp):
         """
         Update temperature based on current epoch and return the new value
