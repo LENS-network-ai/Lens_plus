@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+# at the top of your file
+from builtins import int as int_builtin
+import math
 class L0RegularizerParams:
     """Class to hold configurable parameters for L0 regularization"""
     def __init__(self, gamma=-0.1, zeta=1.1, beta_l0=0.66, eps=1e-20):
@@ -43,7 +45,7 @@ def l0_train(logAlpha, min=0, max=1, params=None, temperature=None):
     U = torch.rand(logAlpha.size()).type_as(logAlpha) + params.eps
     s = params.sig((torch.log(U / (1 - U)) + logAlpha) / effective_beta)
     s_bar = s * (params.zeta - params.gamma) + params.gamma
-    mask = F.hardtanh(s_bar, min, max)
+    mask = torch.clamp(s_bar, min, max)
     return mask
 
 def l0_test(logAlpha, min=0, max=1, params=None, temperature=None):
@@ -51,9 +53,12 @@ def l0_test(logAlpha, min=0, max=1, params=None, temperature=None):
     if params is None:
         params = l0_params
     effective_beta = temperature if temperature is not None else params.beta_l0
+    #  effective_beta= 1.0
+    print(f"🔍 l0_test DEBUG: temperature={temperature}, effective_beta={effective_beta}, params.beta_l0={params.beta_l0}")
+
     s = params.sig(logAlpha/effective_beta)
     s_bar = s * (params.zeta - params.gamma) + params.gamma
-    mask = F.hardtanh(s_bar, min, max)
+    mask = torch.clamp(s_bar, min, max)
     return mask
 
 def get_loss2(logAlpha, params=None):

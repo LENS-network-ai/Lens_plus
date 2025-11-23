@@ -252,59 +252,54 @@ class EGLassoRegularization:
         Args:
             batch_idx: Batch index
             logits: Edge logits [num_nodes, num_nodes]
-        """
+           """
         self.logits_storage[batch_idx] = logits
     
     # ========================================================================
     # CONSTRAINED OPTIMIZATION: DUAL VARIABLE UPDATE
     # ========================================================================
-    
     def update_dual_variable(self, constraint_violation):
-        """
-        Update dual variable (Lagrange multiplier) via projected gradient ascent
-        
-        From paper Eq. (5):
-            λ̂^{t+1} = λ^t + η_dual * (g_const(φ) - ε)
-            λ^{t+1} = max(0, λ̂^{t+1})
-        
-        With dual restarts (paper Eq. 6):
-            λ^{t+1} = 0 if constraint satisfied, else standard update
-        
-        Args:
-            constraint_violation: Current constraint violation (g_const - ε)
-        
-        Returns:
-            updated_lambda: New dual variable value
-        """
-        if not self.use_constrained:
-            return self.current_lambda
-        
-        # Convert to scalar if needed
-        if isinstance(constraint_violation, torch.Tensor):
-            violation_value = constraint_violation.item()
-        else:
-            violation_value = constraint_violation
-        
-        # Check if constraint is satisfied (g_const ≤ ε)
-        constraint_satisfied = (violation_value <= 0)
-        
-        if self.enable_dual_restarts and constraint_satisfied:
-            # Paper Eq. (6): Dual restart - reset to 0 when constraint satisfied
-            self.dual_lambda = 0.0
-        else:
-            # Paper Eq. (5): Standard gradient ascent update
-            lambda_hat = self.dual_lambda + self.dual_lr * violation_value
-            
-            # Project to non-negative orthant
-            self.dual_lambda = max(0.0, lambda_hat)
-        
-        # Track history
-        self.dual_lambda_history.append(self.dual_lambda)
-        self.constraint_violation_history.append(violation_value)
-        self.constraint_satisfied_history.append(constraint_satisfied)
-        
-        return self.dual_lambda
+     """Update dual variable with restarts (following paper exactly)"""
     
+     if not self.use_constrained:
+        return self.current_lambda
+    
+     # Get CURRENT violation (not smoothed!)
+     violation_value = constraint_violation.item() if isinstance(constraint_violation, torch.Tensor) else constraint_violation
+    
+     # Optional: Track history for monitoring only (not for decision making!)
+     if not hasattr(self, 'constraint_history'):
+        self.constraint_history = []
+     self.constraint_history.append(violation_value)
+     if len(self.constraint_history) > 100:
+        self.constraint_history.pop(0)
+    
+     # Gradual activation during warmup
+     if self.current_epoch < self.warmup_epochs:
+        warmup_scale = self.current_epoch / max(1, self.warmup_epochs)
+        effective_lr = self.dual_lr * warmup_scale
+     else:
+        effective_lr = self.dual_lr
+    
+     # CRITICAL: Check constraint satisfaction with CURRENT violation
+     constraint_satisfied = (violation_value <= 0)  # Not averaged!
+    
+     # Dual variable update with restart (exactly as paper Equation 6)
+     if self.enable_dual_restarts and constraint_satisfied:
+        # Constraint satisfied → RESTART
+        self.dual_lambda = 0.0
+     else:
+        # Constraint violated → GRADIENT ASCENT with CURRENT violation
+        lambda_hat = self.dual_lambda + effective_lr * violation_value  # Current!
+        
+        # Project to non-negative (paper uses max(0, ...))
+        self.dual_lambda = max(0.0, lambda_hat)
+        
+        # Optional safety clip (paper doesn't mention this, but reasonable)
+        max_lambda = 1.0  # You can remove this if you want exact paper behavior
+        self.dual_lambda = min(self.dual_lambda, max_lambda)
+    
+     return self.dual_lambda    
     def get_effective_lambda(self):
         """
         Get effective lambda for current iteration
@@ -628,10 +623,11 @@ class EGLassoRegularization:
             # Compute constraint violation: g_const(φ) - ε
             # Constraint is: g_const(φ) ≤ ε
             constraint_violation = expected_l0_density - self.constraint_target
-            
             # Use current dual variable (will be updated after backward pass)
             # Paper Eq. (4): L(θ̃, φ, λ_co) = f_obj(θ̃, φ) + λ_co * (g_const(φ) - ε)
-            lambda_eff = self.dual_lambda
+          
+            lambda_eff = self.dual_lambda                                
+           
             
             # Lagrangian term
             reg_loss = lambda_eff * constraint_violation

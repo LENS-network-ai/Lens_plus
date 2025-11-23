@@ -1,0 +1,66 @@
+LENS MODEL TRAINING RESULTS
+============================================================
+
+MODEL CONFIGURATION
+----------------------------------------
+L0 Method: hard-concrete
+Lambda (λ): 0.01
+Regularization Mode: l0
+L0 Parameters:
+  - gamma (γ): -0.1
+  - zeta (ζ): 1.1
+  - beta (β): 0.66
+
+Architecture:
+  - Edge Dimension: 128
+  - Hidden Dimensions: [256]
+  - Dropout: 0.1
+
+Training:
+  - Epochs: 70
+  - Warmup Epochs: 30
+  - Learning Rate: 0.0001
+  - Weight Decay: 0.0001
+  - Batch Size: 1
+
+Graph Processing:
+  - Graph Size Adaptation: False
+  - Min Edges Per Node: 2.0
+
+============================================================
+PERFORMANCE RESULTS
+----------------------------------------
+Best Validation Accuracy: 0.8926
+Best Epoch: 57
+
+Final Epoch:
+  - Train Accuracy: 0.9101
+  - Val Accuracy: 0.8865
+  - Train Loss: 0.4643
+  - Val Loss: 0.5710
+
+============================================================
+OVERFITTING ANALYSIS
+----------------------------------------
+Severity: None
+Average Train-Val Gap (post-warmup): 0.0146
+Maximum Train-Val Gap: 0.0917
+Max Gap Epoch: 17
+
+============================================================
+RECOMMENDATIONS
+----------------------------------------
+Model shows good generalization! ✓
+
+Suggestions:
+  1. Experiment with different regularization strengths
+  2. Try slightly decreasing lambda to allow more edges
+  3. Consider ensemble methods for further improvement
+
+============================================================
+METHOD-SPECIFIC NOTES (HARD-CONCRETE)
+----------------------------------------
+Hard-Concrete Relaxation:
+  ✓ Continuous relaxation provides stable gradients
+  ✓ Proven method for graph sparsification
+  → Consider ARM if you need truly binary gates during training
